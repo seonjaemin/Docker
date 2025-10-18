@@ -1,0 +1,36 @@
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: mongodb
+    networks: [devapp-net]
+    ports: ["17017:27017"]
+    restart: always
+
+  backend:
+    image: 192.168.0.208/demo/backend:1.5
+    container_name: backend
+    networks: [devapp-net]
+    environment:
+      - PORT=8000
+      - GUESTBOOK_DB_ADDR=mongodb:27017
+    ports:
+      - "8001:8000"   # 테스트용 외부 확인
+    restart: always
+    depends_on: [mongodb]
+
+  frontend:
+    image: 192.168.0.208/demo/frontend:1.6
+    container_name: frontend
+    networks: [devapp-net]
+    environment:
+      - PORT=8000
+      - GUESTBOOK_API_ADDR=http://backend:8000
+    ports:
+      - "3000:8000"   # 프론트가 내부 8000에서 뜰 때. Nginx 80이면 "3000:80"로 변경
+    restart: always
+    depends_on: [backend]
+
+networks:
+  devapp-net:
+    external: true
+
