@@ -1,0 +1,300 @@
+doctype html
+html(lang="ko")
+  head
+    meta(charset="utf-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1")
+    title Error Archive — 홈
+    style.
+      :root{--bg:#f6f7fb;--card:#fff;--txt:#0f172a;--muted:#64748b;--pri:#2563eb;--danger:#dc2626}
+      *{box-sizing:border-box}
+      body{margin:16;font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto;background:var(--bg);color:var(--txt)}
+      .container{max-width:980px;margin:36px auto 0;padding:0 16px}
+      header{margin-bottom:5px}
+      h1{font-size:32px;margin:0 0 6px}
+      .sub{color:var(--muted)}
+      .card{
+        background:var(--card);
+        border:1px solid #e5e7eb;
+        border-radius:14px;
+        box-shadow:0 6px 18px rgba(0,0,0,.05);
+        padding:16px 16px 0;
+      }
+      section.card{margin-bottom:0}
+      .row{display:flex;gap:10px;flex-wrap:wrap}
+      .field{flex:1 1 200px;display:flex;flex-direction:column;gap:6px}
+      label{font-weight:600}
+      input,select,textarea{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+      textarea{min-height:120px;resize:vertical}
+      .btn{border:0;border-radius:10px;background:var(--pri);color:#fff;font-weight:700;padding:10px 16px;cursor:pointer}
+      .list{display:grid;grid-template-columns:1fr;gap:12px;margin-top:0}
+      .item{background:#fff;border:1px solid #eef2f7;border-radius:12px;padding:14px;position:relative}
+      .item h3{margin:0 0 6px;font-size:16px}
+      .item-head{display:flex;align-items:center;gap:8px;justify-content:space-between}
+      .meta{color:var(--muted);font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+      .badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #dbe3f2;background:#f3f6ff;font-size:11px;color:#274690}
+      .section-title{margin:12px 0 6px;font-weight:700;font-size:13px}
+      .empty{
+        display:none;
+        margin:4px 0 0;
+        padding:0;
+        border:none;
+        background:transparent;
+        color:var(--muted);
+        text-align:left;
+      }
+      .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+      .thumb{width:160px;height:160px;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;background:#fafafa;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform 0.2s}
+      .thumb:hover{transform:scale(1.05)}
+      .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+      .modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.9);align-items:center;justify-content:center}
+      .modal.active{display:flex}
+      .modal-content{max-width:90%;max-height:90vh;object-fit:contain}
+      .modal-close{position:absolute;top:20px;right:35px;color:#fff;font-size:40px;font-weight:bold;cursor:pointer;transition:0.3s}
+      .modal-close:hover{color:#bbb}
+      .item .actions { display: none !important; }
+      .toolbar{display:flex;flex-direction:column;gap:2px;align-items:flex-start;margin-top:6px}
+      @media (min-width:720px){ .list{grid-template-columns:1fr 1fr} }
+  body
+    .container
+      header
+        h1 Error Archive.
+        p.sub "오늘의 오류, 내일의 지식"
+
+      section.card
+        form#form
+          .row
+            .field
+              label 작성자
+              input#writer(type="text", placeholder="닉네임", required)
+            .field
+              label 제목
+              input#title(type="text", placeholder="제목을 입력하세요", required)
+            .field(style="flex:0 1 180px")
+              label 날짜
+              input#date(type="date")
+            .field(style="flex:0 1 220px")
+              label 카테고리
+              select#category
+                option(value="리눅스") 리눅스
+                option(value="파이썬") 파이썬
+                option(value="DB") DB
+                option(value="도커") 도커
+                option(value="쿠버네티스") 쿠버네티스
+
+          .field(style="margin-top:10px")
+            label 오류내용
+            textarea#content(placeholder="오류내용을 입력하세요.")
+
+          .field(style="margin-top:10px")
+            label 해결
+            textarea#solution(placeholder="해결 과정을 요약하거나 단계별로 적어주세요.")
+
+          .field(style="margin-top:10px")
+            label 이미지 첨부
+            small.sub 최대 5장, 파일당 5MB
+            input#images(type="file", accept="image/*", multiple)
+            #preview.thumbs
+
+          .toolbar
+            button.btn(type="submit" style="width:220px") 등록
+            .field(style="flex:0 1 100px")
+              label 목록 필터
+              select#filter
+                option(value="전체") 전체
+                option(value="리눅스") 리눅스
+                option(value="파이썬") 파이썬
+                option(value="DB") DB
+                option(value="도커") 도커
+                option(value="쿠버네티스") 쿠버네티스
+
+      section(style="margin-top:0")
+        #list.list
+        #empty.empty 현재 데이터가 없습니다.
+
+      // 이미지 확대 모달
+      #imageModal.modal
+        span.modal-close &times;
+        img.modal-content#modalImage
+
+      script.
+        const dateEl=document.getElementById('date'); 
+        dateEl.value=new Date().toISOString().slice(0,10);
+        const form=document.getElementById('form');
+        const list=document.getElementById('list');
+        const empty=document.getElementById('empty');
+        const imagesInput=document.getElementById('images');
+        const preview=document.getElementById('preview');
+        const filterEl=document.getElementById('filter');
+        const modal=document.getElementById('imageModal');
+        const modalImg=document.getElementById('modalImage');
+        const modalClose=document.querySelector('.modal-close');
+
+        let selectedImages=[]; 
+        let filterCategory='전체';
+
+        // 모달 닫기
+        modalClose.onclick = () => { modal.classList.remove('active'); };
+        modal.onclick = (e) => { if(e.target === modal) modal.classList.remove('active'); };
+        document.addEventListener('keydown', (e) => { if(e.key === 'Escape') modal.classList.remove('active'); });
+
+        // 페이지 로드 시 서버에서 데이터 가져오기
+        async function loadPosts() {
+          try {
+            const response = await fetch('/messages');
+            const data = await response.json();
+            renderPosts(data);
+          } catch (error) {
+            console.error('데이터 로드 실패:', error);
+          }
+        }
+
+        imagesInput.addEventListener('change',async(e)=>{
+          const files=Array.from(e.target.files||[]); 
+          const MAX_FILES=5, MAX_SIZE=5*1024*1024;
+          const valid=[]; 
+          for(const f of files){ 
+            if(!f.type.startsWith('image/')) continue;
+            if(f.size>MAX_SIZE){ 
+              alert(`'${f.name}' 파일이 5MB를 초과합니다.`); 
+              continue; 
+            }
+            valid.push(f); 
+            if(valid.length>=MAX_FILES) break; 
+          }
+          selectedImages=await Promise.all(valid.map(f=>new Promise(res=>{
+            const fr=new FileReader(); 
+            fr.onload=()=>res(fr.result); 
+            fr.readAsDataURL(f);
+          })));
+          renderPreview();
+        });
+
+        filterEl.addEventListener('change',()=>{ 
+          filterCategory=filterEl.value; 
+          loadPosts(); 
+        });
+
+        form.addEventListener('submit',async (e)=>{
+          e.preventDefault();
+          const writer=document.getElementById('writer').value.trim();
+          const title=document.getElementById('title').value.trim();
+          const date=document.getElementById('date').value||new Date().toISOString().slice(0,10);
+          const category=document.getElementById('category').value;
+          const content=document.getElementById('content').value.trim();
+          const solution=document.getElementById('solution').value.trim();
+          
+          if(!writer||!title){ 
+            alert('작성자와 제목을 입력하세요.'); 
+            return; 
+          }
+
+          // 서버에 데이터 전송
+          try {
+            const response = await fetch('/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                writer,
+                title,
+                date,
+                category,
+                content,
+                solution,
+                images: selectedImages
+              })
+            });
+
+            if (response.ok) {
+              // 폼 리셋
+              form.reset();
+              dateEl.value=new Date().toISOString().slice(0,10);
+              selectedImages=[];
+              renderPreview();
+
+              // 필터 초기화 및 데이터 새로고침
+              filterCategory='전체';
+              filterEl.value='전체';
+              
+              await loadPosts();
+              alert('등록되었습니다!');
+            } else {
+              const errorData = await response.json().catch(() => ({}));
+              console.error('Server error:', errorData);
+              alert('등록 실패: ' + (errorData.error || '다시 시도해주세요.'));
+            }
+          } catch (error) {
+            console.error('등록 실패:', error);
+            alert('등록 중 오류가 발생했습니다.');
+          }
+        });
+
+        function renderPreview(){
+          preview.innerHTML=''; 
+          if(!selectedImages.length) return;
+          selectedImages.forEach(src=>{ 
+            const box=document.createElement('div'); 
+            box.className='thumb';
+            const img=document.createElement('img'); 
+            img.src=src; 
+            box.appendChild(img); 
+            preview.appendChild(box); 
+          });
+        }
+
+        function renderPosts(posts){
+          list.innerHTML='';
+          const data = (filterCategory==='전체') ? posts : posts.filter(p=>p.category===filterCategory);
+
+          if(data.length===0){
+            empty.style.display='inline';
+            return;
+          }
+          empty.style.display='none';
+
+          data.forEach(p=>{
+            const item=document.createElement('article'); 
+            item.className='item';
+            item.innerHTML=`
+              <div class="item-head">
+                <h3>${escapeHtml(p.title)}</h3>
+              </div>
+              <div class="meta">
+                <span>${escapeHtml(p.writer)}</span>
+                <span>• ${escapeHtml(p.date)}</span>
+                ${p.category ? `<span class="badge">${escapeHtml(p.category)}</span>` : ''}
+              </div>
+              ${p.content ? `<div class="section"><div class="section-title">오류내용</div><p style="margin:6px 0 0">${nl2br(escapeHtml(p.content))}</p></div>` : ''}
+              ${p.solution ? `<div class="section"><div class="section-title">해결</div><p style="margin:6px 0 0">${nl2br(escapeHtml(p.solution))}</p></div>` : ''}
+            `;
+            if (p.images && p.images.length){
+              const thumbs=document.createElement('div'); 
+              thumbs.className='thumbs';
+              p.images.forEach(src=>{ 
+                const box=document.createElement('div'); 
+                box.className='thumb';
+                box.onclick = () => {
+                  modalImg.src = src;
+                  modal.classList.add('active');
+                };
+                const img=document.createElement('img'); 
+                img.src=src;
+                box.appendChild(img);
+                thumbs.appendChild(box);
+              });
+              item.appendChild(thumbs);
+            }
+            list.appendChild(item);
+          });
+        }
+
+        function escapeHtml(str){ 
+          return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); 
+        }
+        function nl2br(str){ 
+          return str.replace(/\n/g,'<br>'); 
+        }
+
+        // 초기 로드
+        loadPosts();

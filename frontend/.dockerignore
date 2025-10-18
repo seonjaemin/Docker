@@ -1,0 +1,12 @@
+# 공통
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.git
+*.log
+dist/
+build/
+coverage/
+.env
+.env.*
