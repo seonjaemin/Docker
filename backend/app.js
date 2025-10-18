@@ -1,31 +1,75 @@
 // backend/app.js
 const express = require('express');
-const path = require('path');
-const Message = require('./routes/messages');
-const indexRouter = require('./routes/index');
+const bodyParser = require('body-parser');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'pug');
-app.use(express.json());
+// MongoDB 8 호환 최신 드라이버 방식
+const DB_NAME = process.env.MONGO_DB_NAME || 'guestbook';
+const MONGO_URI =
+  process.env.MONGO_URI ||
+  'mongodb://mongodb:27017/?directConnection=true&appName=guestbook';
 
-// 서버 시작 전에 **반드시 DB 연결 완료**
+// 파서
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+// 목록
+app.get('/messages', async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const items = await db
+      .collection('messages')
+      .find({})
+      .sort({ _id: -1 })
+      .toArray();
+    return res.json(items);
+  } catch (e) {
+    console.error('GET /messages error:', e);
+    return res.status(500).send('Failed to load');
+  }
+});
+
+// 등록
+app.post('/messages', async (req, res) => {
+  try {
+    const db = req.app.locals.db;
+    const payload = {
+      writer: req.body.writer || '',
+      title: req.body.title || '',
+      date: req.body.date || new Date().toISOString().slice(0, 10),
+      category: req.body.category || '',
+      content: req.body.content || '',
+      solution: req.body.solution || '',
+      images: Array.isArray(req.body.images) ? req.body.images : [],
+      createdAt: new Date(),
+    };
+    const r = await db.collection('messages').insertOne(payload);
+    console.log('saved message id =', r.insertedId);
+    return res.status(201).json({ ok: true, id: r.insertedId });
+  } catch (e) {
+    console.error('POST /messages save error:', e);
+    return res.status(500).send('Failed to save message');
+  }
+});
+
+// Mongo 연결 성공 후에만 listen (초기 실패 시 재시작으로 복구)
 (async () => {
   try {
-    const addr = process.env.GUESTBOOK_DB_ADDR || 'mongodb:27017';
-    await Message.connectToMongoDB(addr, 'guestbook');
-    console.log(`connected to mongodb://${addr}/guestbook`);
+    const client = new MongoClient(MONGO_URI, { serverSelectionTimeoutMS: 5000 });
+    await client.connect();
+    const db = client.db(DB_NAME);
+    await db.command({ ping: 1 });
+    console.log(`Connected to ${MONGO_URI} (${DB_NAME})`);
+    app.locals.db = db;
 
-    // DB 연결된 후 라우터 장착
-    app.use('/', indexRouter);
-
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`App listening on port ${PORT}`);
     });
   } catch (err) {
-    console.error('MongoDB connect failed:', err);
-    process.exit(1); // 초기화 실패 시 재시작되도록
+    console.error('Mongo connect failed:', err);
+    process.exit(1);
   }
 })();
