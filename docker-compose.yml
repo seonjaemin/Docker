@@ -1,36 +1,161 @@
 services:
-  mongodb:
-    image: mongo:8.0
-    container_name: mongodb
-    networks: [devapp-net]
-    ports: ["17017:27017"]
+  # =========================
+  #  프록시 & 로드밸런서
+  # =========================
+  proxy-fe:
+    image: nginx:1.25-alpine
+    container_name: proxy-fe
     restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./proxy/nginx-fe.conf:/etc/nginx/nginx.conf:ro
+    networks: [fe-net]
 
-  backend:
+  haproxy:
+    image: haproxy:2.9-alpine
+    container_name: haproxy
+    restart: always
+    ports:
+      - "9000:9000"      # FE -> HAProxy(내부용 API 엔드포인트)
+      - "9001:8404"      # HAProxy stats (선택)
+    volumes:
+      - ./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks: [fe-net, be-net]
+
+  # =========================
+  #  프론트엔드 (3대)
+  # =========================
+  frontend-1:
+    image: 192.168.0.208/demo/frontend:1.6
+    container_name: frontend-1
+    restart: always
+    environment:
+      - PORT=8000
+      - GUESTBOOK_API_ADDR=http://haproxy:9000
+    networks: [fe-net]
+
+  frontend-2:
+    image: 192.168.0.208/demo/frontend:1.6
+    container_name: frontend-2
+    restart: always
+    environment:
+      - PORT=8000
+      - GUESTBOOK_API_ADDR=http://haproxy:9000
+    networks: [fe-net]
+
+  frontend-3:
+    image: 192.168.0.208/demo/frontend:1.6
+    container_name: frontend-3
+    restart: always
+    environment:
+      - PORT=8000
+      - GUESTBOOK_API_ADDR=http://haproxy:9000
+    networks: [fe-net]
+
+  # =========================
+  #  백엔드 (3대)
+  # =========================
+  backend-1:
     image: 192.168.0.208/demo/backend:1.5
-    container_name: backend
-    networks: [devapp-net]
+    container_name: backend-1
+    restart: always
     environment:
       - PORT=8000
       - GUESTBOOK_DB_ADDR=mongodb:27017
-    ports:
-      - "8001:8000"   # 테스트용 외부 확인
-    restart: always
+    networks: [be-net]
     depends_on: [mongodb]
 
-  frontend:
-    image: 192.168.0.208/demo/frontend:1.6
-    container_name: frontend
-    networks: [devapp-net]
+  backend-2:
+    image: 192.168.0.208/demo/backend:1.5
+    container_name: backend-2
+    restart: always
     environment:
       - PORT=8000
-      - GUESTBOOK_API_ADDR=http://backend:8000
-    ports:
-      - "3000:8000"   # 프론트가 내부 8000에서 뜰 때. Nginx 80이면 "3000:80"로 변경
+      - GUESTBOOK_DB_ADDR=mongodb:27017
+    networks: [be-net]
+    depends_on: [mongodb]
+
+  backend-3:
+    image: 192.168.0.208/demo/backend:1.5
+    container_name: backend-3
     restart: always
-    depends_on: [backend]
+    environment:
+      - PORT=8000
+      - GUESTBOOK_DB_ADDR=mongodb:27017
+    networks: [be-net]
+    depends_on: [mongodb]
+
+  # =========================
+  #  DB (MongoDB)
+  # =========================
+  mongodb:
+    image: mongo:8.0
+    container_name: mongodb
+    restart: always
+    ports:
+      - "17017:27017"    # (필요시) 외부 확인용
+    volumes:
+      - mongo-data:/data/db
+    networks: [be-net]
+
+  # =========================
+  #  모니터링
+  # =========================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks: [monitoring-net]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: always
+    ports:
+      - "8080:8080"      # (선택) 외부에서 UI 확인
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks: [monitoring-net]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./monitoring/default.yaml:/etc/grafana/provisioning/dashboards/default.yaml:ro
+      - ./monitoring/dashboard.json:/var/lib/grafana/dashboards/docker-dashboard.json:ro
+    networks: [monitoring-net]
+
+volumes:
+  mongo-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
-  devapp-net:
-    external: true
+  fe-net:
+    driver: bridge
+    internal: false   # 외부에서 Nginx 접근
+  be-net:
+    driver: bridge
+    internal: true    # 외부 노출 불필요 (격리)
+  monitoring-net:
+    driver: bridge
+    internal: false   # Grafana/Prometheus UI를 외부에서 볼 수 있게
 

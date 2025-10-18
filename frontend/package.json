@@ -1,9 +1,10 @@
 {
   "name": "frontend",
   "version": "1.0.0",
+  "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node --inspect=9229 app.js"
   },
   "author": "Google Inc.",
   "license": "0BSD",
