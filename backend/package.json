@@ -4,11 +4,9 @@
   "description": "backend",
   "main": "app.js",
   "scripts": {
-    "start": "node --inspect=9229 app.js"
+    "start": "node app.js"
   },
-  "author": "Google Inc.",
-  "license": "0BSD",
-  "devDependencies": {
+  "dependencies": {
     "body-parser": "^1.18.3",
     "express": "^4.16.4",
     "mongodb": "^3.2.2",

@@ -3,7 +3,7 @@ ENV NODE_ENV=production
 WORKDIR /frontend
 
 COPY --chown=node:node package*.json ./
-RUN npm install --omit=dev        # express 포함 설치
+RUN npm install
 
 COPY --chown=node:node . .
 
