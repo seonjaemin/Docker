@@ -1,12 +1,13 @@
 FROM node:20-alpine
-ENV NODE_ENV=production
 WORKDIR /frontend
 
-COPY --chown=node:node package*.json ./
-RUN npm install
+# package*.json만 먼저 복사 → 의존성 설치
+COPY package*.json ./
+RUN npm ci --omit=dev   # (= prod만 설치)
 
-COPY --chown=node:node . .
+# 앱 소스 복사
+COPY . .
 
-USER node
+ENV PORT=8000
 EXPOSE 8000
 CMD ["node", "app.js"]

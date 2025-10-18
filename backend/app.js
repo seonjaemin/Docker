@@ -1,38 +1,31 @@
-// app.js
+// backend/app.js
 const express = require('express');
+const path = require('path');
+const Message = require('./routes/messages');
+const indexRouter = require('./routes/index');
+
 const app = express();
-const routes = require('./routes');
 const PORT = process.env.PORT || 8000;
 
-// Mongo 라우트/연결 유틸
-const messages = require('./routes/messages');
-
-// 바디 파서 (POST JSON 받기)
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'pug');
 app.use(express.json());
 
-// 기본 라우트
-app.use('/', routes);
+// 서버 시작 전에 **반드시 DB 연결 완료**
+(async () => {
+  try {
+    const addr = process.env.GUESTBOOK_DB_ADDR || 'mongodb:27017';
+    await Message.connectToMongoDB(addr, 'guestbook');
+    console.log(`connected to mongodb://${addr}/guestbook`);
 
-// 환경변수 점검: MONGODB_URI 우선, 없으면 GUESTBOOK_DB_ADDR(host:port)
-if (!process.env.MONGODB_URI && !process.env.GUESTBOOK_DB_ADDR) {
-  const errMsg =
-    'MongoDB 접속 정보가 없습니다. MONGODB_URI 또는 GUESTBOOK_DB_ADDR 둘 중 하나를 설정하세요.';
-  console.error(errMsg);
-  throw new Error(errMsg);
-}
+    // DB 연결된 후 라우터 장착
+    app.use('/', indexRouter);
 
-// Mongo 연결 후 서버 시작 (MongoDB 8 호환)
-messages
-  .connectToMongoDB()
-  .then(() => {
-    app.listen(PORT, '0.0.0.0', () => {
+    app.listen(PORT, () => {
       console.log(`App listening on port ${PORT}`);
-      console.log('Press Ctrl+C to quit.');
     });
-  })
-  .catch((err) => {
-    console.error('Mongo connect failed:', err);
-    process.exit(1);
-  });
-
-module.exports = app;
+  } catch (err) {
+    console.error('MongoDB connect failed:', err);
+    process.exit(1); // 초기화 실패 시 재시작되도록
+  }
+})();
