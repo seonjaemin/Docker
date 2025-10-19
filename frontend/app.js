@@ -15,8 +15,9 @@ const API = RAW_API.startsWith('http') ? RAW_API : `http://${RAW_API}`;
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+// ★ JSON과 urlencoded 둘 다 50MB로 상향
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
+app.use(bodyParser.json({ limit: '50mb' }));
 
 // ------- 중요: 프록시 라우트들 (catch-all 보다 '위에') -------
 
@@ -31,18 +32,23 @@ app.get('/messages', async (req, res) => {
   }
 });
 
-// 글 등록 프록시 (폼 제출)
+// ★ 글 등록 프록시 - JSON 그대로 전달
 app.post('/messages', async (req, res) => {
   try {
-    const params = new URLSearchParams(req.body); // urlencoded 그대로 전달
-    await axios.post(`${API}/messages`, params, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 5000,
+    console.log('[Frontend Proxy] Received body keys:', Object.keys(req.body));
+    console.log('[Frontend Proxy] Images length:', req.body.images?.length);
+    
+    // JSON으로 받았으면 JSON으로 그대로 전달
+    await axios.post(`${API}/messages`, req.body, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 30000, // 이미지 있을 수 있으니 타임아웃 늘림
+      maxContentLength: 50 * 1024 * 1024,
+      maxBodyLength: 50 * 1024 * 1024,
     });
-    return res.redirect('/'); // 등록 후 홈으로 (클라이언트 스크립트가 다시 /messages 를 GET)
+    return res.json({ ok: true }); // JSON 응답으로 변경
   } catch (e) {
     console.error('POST /messages proxy failed:', e.response?.data || e.message);
-    return res.status(502).send('Failed to save message');
+    return res.status(502).json({ error: 'Failed to save message' });
   }
 });
 

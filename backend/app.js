@@ -12,9 +12,13 @@ const MONGO_URI =
   process.env.MONGO_URI ||
   'mongodb://mongodb:27017/?directConnection=true&appName=guestbook';
 
-// 파서
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+// ★ 파서: 전역 50MB 상향 (JSON, urlencoded 모두)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// (기존 bodyParser도 남겨두고 싶다면 아래처럼 보조로 둘 수 있음)
+// app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
+// app.use(bodyParser.json({ limit: '50mb' }));
 
 // 목록
 app.get('/messages', async (req, res) => {
@@ -35,6 +39,11 @@ app.get('/messages', async (req, res) => {
 // 등록
 app.post('/messages', async (req, res) => {
   try {
+    // ★ 디버그: 실제로 무엇이 들어오는지 확인
+    console.log('[POST /messages] content-length:', req.headers['content-length']);
+    console.log('[POST /messages] images len =', Array.isArray(req.body?.images) ? req.body.images.length : 'no images');
+    console.log('[POST /messages] keys =', Object.keys(req.body || {}));
+
     const db = req.app.locals.db;
     const payload = {
       writer: req.body.writer || '',

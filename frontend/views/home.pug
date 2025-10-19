@@ -148,48 +148,96 @@ html(lang="ko")
           }
         }
 
-        // ✅ 수정된 이미지 선택 핸들러 (파일당 5MB, 총 10MB, 최대 5장)
+        // ★ 안전 리사이즈 함수: createImageBitmap 실패 시 FileReader + Image + Canvas 폴백
+        async function resizeToDataURL(file, maxW = 1280, maxH = 1280, quality = 0.8) {
+          if (!file || !file.type || !file.type.startsWith('image/')) {
+            throw new Error('not-an-image');
+          }
+
+          // 1차: createImageBitmap
+          try {
+            const bitmap = await createImageBitmap(file);
+            let { width:w, height:h } = bitmap;
+            const ratio = Math.min(maxW / w, maxH / h, 1);
+            const dw = Math.round(w * ratio);
+            const dh = Math.round(h * ratio);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = dw; canvas.height = dh;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(bitmap, 0, 0, dw, dh);
+
+            const dataURL = canvas.toDataURL('image/jpeg', quality);
+            if (typeof dataURL === 'string' && dataURL.startsWith('data:image/')) return dataURL;
+            throw new Error('bad-dataurl');
+          } catch (e) {
+            console.warn('[resizeToDataURL] createImageBitmap 실패 → 폴백 사용:', e?.message || e);
+
+            // 2차 폴백: FileReader → <img> → Canvas
+            const fileDataURL = await new Promise((res, rej) => {
+              const fr = new FileReader();
+              fr.onerror = () => rej(new Error('filereader-failed'));
+              fr.onload = () => res(fr.result);
+              fr.readAsDataURL(file);
+            });
+
+            const img = await new Promise((res, rej) => {
+              const image = new Image();
+              image.onload = () => res(image);
+              image.onerror = () => rej(new Error('image-load-failed'));
+              image.src = fileDataURL;
+            });
+
+            let w = img.naturalWidth;
+            let h = img.naturalHeight;
+            const ratio = Math.min(maxW / w, maxH / h, 1);
+            const dw = Math.round(w * ratio);
+            const dh = Math.round(h * ratio);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = dw; canvas.height = dh;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, dw, dh);
+
+            const dataURL = canvas.toDataURL('image/jpeg', quality);
+            if (typeof dataURL === 'string' && dataURL.startsWith('data:image/')) return dataURL;
+            throw new Error('fallback-bad-dataurl');
+          }
+        }
+
+        // ✅ 이미지 선택 핸들러 (파일당 5MB, 총 10MB, 최대 5장 + 리사이즈 + 디버그)
         imagesInput.addEventListener('change', async (e) => {
           const files = Array.from(e.target.files || []);
           const MAX_FILES = 5;
-          const MAX_FILE_SIZE = 5 * 1024 * 1024;     // 파일당 5MB (라벨과 일치)
-          const MAX_TOTAL_SIZE = 10 * 1024 * 1024;   // 총 용량 10MB (원본 기준)
+          const MAX_FILE_SIZE = 5 * 1024 * 1024;     // 파일당 5MB (원본 기준)
+          const MAX_TOTAL_SIZE = 10 * 1024 * 1024;   // 총 10MB (원본 기준)
+
+          console.log('[change] picked files:', files.map(f => ({ name: f.name, size: f.size, type: f.type })));
 
           const valid = [];
-          let totalSize = 0; // 원본 사이즈 누적
+          let totalSize = 0;
 
           for (const f of files) {
             if (!f.type.startsWith('image/')) continue;
-
-            // 파일당 제한
-            if (f.size > MAX_FILE_SIZE) {
-              alert(`'${f.name}' 파일이 5MB를 초과합니다.`);
-              continue;
-            }
-
-            // 총 용량 제한 (원본 기준)
-            if (totalSize + f.size > MAX_TOTAL_SIZE) {
-              alert('총 이미지 용량(원본 기준) 10MB를 초과했습니다.');
-              break;
-            }
-
+            if (f.size > MAX_FILE_SIZE) { alert(`'${f.name}' 파일이 5MB를 초과합니다.`); continue; }
+            if (totalSize + f.size > MAX_TOTAL_SIZE) { alert('총 이미지 용량(원본 기준) 10MB를 초과했습니다.'); break; }
             valid.push(f);
             totalSize += f.size;
-
             if (valid.length >= MAX_FILES) break;
           }
 
-          // Base64(data URL)로 변환
-          selectedImages = await Promise.all(
-            valid.map(
-              (f) =>
-                new Promise((res) => {
-                  const fr = new FileReader();
-                  fr.onload = () => res(fr.result); // data:image/...;base64,...
-                  fr.readAsDataURL(f);
-                })
-            )
-          );
+          selectedImages = [];
+          for (const f of valid) {
+            try {
+              const dataURL = await resizeToDataURL(f, 1280, 1280, 0.8);
+              selectedImages.push(dataURL);
+            } catch (err) {
+              console.warn('[change] 변환 실패, 파일 제외:', f.name, err?.message || err);
+            }
+          }
+
+          console.log('[change] selectedImages.length:', selectedImages.length);
+          console.log('[change] first image head:', selectedImages[0]?.slice?.(0, 40));
 
           renderPreview();
         });
@@ -213,22 +261,24 @@ html(lang="ko")
             return; 
           }
 
+          // ★ 제출 직전 방어: 진짜 data:image/ 인지 확인
+          if (!selectedImages.every(s => typeof s === 'string' && s.startsWith('data:image/'))) {
+            alert('이미지 변환 중입니다. 썸네일이 보인 뒤 등록하세요.');
+            return;
+          }
+
           // 서버에 데이터 전송
           try {
+            const payload = {
+              writer, title, date, category, content, solution,
+              images: selectedImages
+            };
+            console.log('[submit] payload approx size:', JSON.stringify(payload).length);
+
             const response = await fetch('/messages', {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                writer,
-                title,
-                date,
-                category,
-                content,
-                solution,
-                images: selectedImages
-              })
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
             });
 
             if (response.ok) {
