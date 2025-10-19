@@ -1,6 +1,8 @@
+apiVersion: 1
 datasources:
-  - name: prometheus
+  - name: Prometheus        # ← 대시보드가 이 이름을 기대
     type: prometheus
-    url: http://localhost:9090
     access: proxy
+    url: http://prometheus:9090
     isDefault: true
+

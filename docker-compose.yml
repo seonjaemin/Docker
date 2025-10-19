@@ -111,7 +111,10 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    networks: [monitoring-net]
+    networks: 
+      - monitoring-net
+      - be-net
+      - fe-net
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
