@@ -27,7 +27,7 @@ services:
   #  프론트엔드 (3대)
   # =========================
   frontend-1:
-    image: 192.168.0.208/demo/frontend:1.6
+    image: 192.168.0.208/demo/frontend:2.1
     container_name: frontend-1
     restart: always
     environment:
@@ -36,7 +36,7 @@ services:
     networks: [fe-net]
 
   frontend-2:
-    image: 192.168.0.208/demo/frontend:1.6
+    image: 192.168.0.208/demo/frontend:2.1
     container_name: frontend-2
     restart: always
     environment:
@@ -45,7 +45,7 @@ services:
     networks: [fe-net]
 
   frontend-3:
-    image: 192.168.0.208/demo/frontend:1.6
+    image: 192.168.0.208/demo/frontend:2.1
     container_name: frontend-3
     restart: always
     environment:
@@ -57,7 +57,7 @@ services:
   #  백엔드 (3대)
   # =========================
   backend-1:
-    image: 192.168.0.208/demo/backend:1.5
+    image: 192.168.0.208/demo/backend:2.0
     container_name: backend-1
     restart: always
     environment:
@@ -67,7 +67,7 @@ services:
     depends_on: [mongodb]
 
   backend-2:
-    image: 192.168.0.208/demo/backend:1.5
+    image: 192.168.0.208/demo/backend:2.0
     container_name: backend-2
     restart: always
     environment:
@@ -77,7 +77,7 @@ services:
     depends_on: [mongodb]
 
   backend-3:
-    image: 192.168.0.208/demo/backend:1.5
+    image: 192.168.0.208/demo/backend:2.0
     container_name: backend-3
     restart: always
     environment:
@@ -154,7 +154,7 @@ networks:
     internal: false   # 외부에서 Nginx 접근
   be-net:
     driver: bridge
-    internal: true    # 외부 노출 불필요 (격리)
+    internal: false    # 외부 노출 불필요 (격리)
   monitoring-net:
     driver: bridge
     internal: false   # Grafana/Prometheus UI를 외부에서 볼 수 있게
