@@ -148,24 +148,49 @@ html(lang="ko")
           }
         }
 
-        imagesInput.addEventListener('change',async(e)=>{
-          const files=Array.from(e.target.files||[]); 
-          const MAX_FILES=5, MAX_SIZE=5*1024*1024;
-          const valid=[]; 
-          for(const f of files){ 
-            if(!f.type.startsWith('image/')) continue;
-            if(f.size>MAX_SIZE){ 
-              alert(`'${f.name}' 파일이 5MB를 초과합니다.`); 
-              continue; 
+        // ✅ 수정된 이미지 선택 핸들러 (파일당 5MB, 총 10MB, 최대 5장)
+        imagesInput.addEventListener('change', async (e) => {
+          const files = Array.from(e.target.files || []);
+          const MAX_FILES = 5;
+          const MAX_FILE_SIZE = 5 * 1024 * 1024;     // 파일당 5MB (라벨과 일치)
+          const MAX_TOTAL_SIZE = 10 * 1024 * 1024;   // 총 용량 10MB (원본 기준)
+
+          const valid = [];
+          let totalSize = 0; // 원본 사이즈 누적
+
+          for (const f of files) {
+            if (!f.type.startsWith('image/')) continue;
+
+            // 파일당 제한
+            if (f.size > MAX_FILE_SIZE) {
+              alert(`'${f.name}' 파일이 5MB를 초과합니다.`);
+              continue;
             }
-            valid.push(f); 
-            if(valid.length>=MAX_FILES) break; 
+
+            // 총 용량 제한 (원본 기준)
+            if (totalSize + f.size > MAX_TOTAL_SIZE) {
+              alert('총 이미지 용량(원본 기준) 10MB를 초과했습니다.');
+              break;
+            }
+
+            valid.push(f);
+            totalSize += f.size;
+
+            if (valid.length >= MAX_FILES) break;
           }
-          selectedImages=await Promise.all(valid.map(f=>new Promise(res=>{
-            const fr=new FileReader(); 
-            fr.onload=()=>res(fr.result); 
-            fr.readAsDataURL(f);
-          })));
+
+          // Base64(data URL)로 변환
+          selectedImages = await Promise.all(
+            valid.map(
+              (f) =>
+                new Promise((res) => {
+                  const fr = new FileReader();
+                  fr.onload = () => res(fr.result); // data:image/...;base64,...
+                  fr.readAsDataURL(f);
+                })
+            )
+          );
+
           renderPreview();
         });
 

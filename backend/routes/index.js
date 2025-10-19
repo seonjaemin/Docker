@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const Message = require('./messages');
 
 const router = express.Router();
-router.use(bodyParser.json());
+router.use(bodyParser.json({ limit: '50mb' }));
 
 // GET /messages
 router.get('/messages', async (req, res) => {
