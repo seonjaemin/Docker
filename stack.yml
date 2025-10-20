@@ -1,0 +1,166 @@
+networks:
+  fe-net:      { external: true }
+  be-net:      { external: true }
+  monitor-net: { external: true }
+
+configs:
+  nginx-fe.conf:
+    file: ./proxy/nginx-fe.conf
+  haproxy.cfg:
+    file: ./haproxy/haproxy.cfg
+  prometheus.yml:
+    file: ./monitoring/prometheus.yml
+
+volumes:
+  prometheus-data: {}
+  grafana-data: {}
+
+services:
+  # ───────── Manager (DB + 모니터링) ─────────
+  mongodb:
+    image: mongo:8.0
+    networks: [be-net]
+    deploy:
+      placement:
+        constraints: ["node.hostname == manager"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports: ["9090:9090"]
+    networks: [monitor-net]
+    configs:
+      - source: prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        mode: 0444
+    volumes:
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    deploy:
+      placement:
+        constraints: ["node.hostname == manager"]
+
+  grafana:
+    image: grafana/grafana:latest
+    ports: ["3001:3000"]
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks: [monitor-net]
+    deploy:
+      placement:
+        constraints: ["node.hostname == manager"]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    privileged: true
+    ports: ["8080:8080"]
+    networks: [monitor-net]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    deploy:
+      placement:
+        constraints: ["node.hostname == manager"]
+
+  # ───────── 프록시/프론트: 이동 가능(둘 중 살아있는 워커로 자동 이동) ─────────
+  proxy-fe:
+    image: nginx:1.25-alpine
+    ports: ["80:80"]  # ingress 모드(기본), 어느 워커에 떠도 접근 가능
+    configs:
+      - source: nginx-fe.conf
+        target: /etc/nginx/nginx.conf
+        mode: 0444
+    networks: [fe-net]
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - "node.role == worker"        # worker1/2 어디든 배치 허용 (← 핵심)
+        preferences:
+          - spread: "node.id"
+
+  frontend-1:
+    image: 192.168.0.208/demo/frontend:2.1
+    environment:
+      - PORT=8000
+      - GUESTBOOK_API_ADDR=http://haproxy:9000
+    networks: [fe-net]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.role == worker"]
+        preferences: [{ spread: "node.id" }]
+
+  frontend-2:
+    image: 192.168.0.208/demo/frontend:2.1
+    environment:
+      - PORT=8000
+      - GUESTBOOK_API_ADDR=http://haproxy:9000
+    networks: [fe-net]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.role == worker"]
+        preferences: [{ spread: "node.id" }]
+
+  frontend-3:
+    image: 192.168.0.208/demo/frontend:2.1
+    environment:
+      - PORT=8000
+      - GUESTBOOK_API_ADDR=http://haproxy:9000
+    networks: [fe-net]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.role == worker"]
+        preferences: [{ spread: "node.id" }]
+
+  # ───────── Worker2 고정(그대로 유지): HAProxy + Backend×3 ─────────
+  haproxy:
+    image: haproxy:2.9-alpine
+    ports: ["9000:9000", "9001:8404"]
+    configs:
+      - source: haproxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+        mode: 0444
+    networks:
+      fe-net: { aliases: ["haproxy"] }
+      be-net: {}
+    deploy:
+      placement:
+        constraints: ["node.hostname == worker2"]
+
+  backend-1:
+    image: 192.168.0.208/demo/backend:2.0
+    environment: [ "PORT=8000", "GUESTBOOK_DB_ADDR=mongodb:27017" ]
+    networks: [be-net]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.hostname == worker2"]
+
+  backend-2:
+    image: 192.168.0.208/demo/backend:2.0
+    environment: [ "PORT=8000", "GUESTBOOK_DB_ADDR=mongodb:27017" ]
+    networks: [be-net]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.hostname == worker2"]
+
+  backend-3:
+    image: 192.168.0.208/demo/backend:2.0
+    environment: [ "PORT=8000", "GUESTBOOK_DB_ADDR=mongodb:27017" ]
+    networks: [be-net]
+    deploy:
+      replicas: 1
+      placement:
+        constraints: ["node.hostname == worker2"]
+
